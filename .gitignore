@@ -9,6 +9,7 @@
 # STM32 Build artifacts
 /Release/
 /Debug/
+*.launch
 
 # Cortex-ARM Drivers
 /Drivers

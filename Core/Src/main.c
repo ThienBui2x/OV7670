@@ -45,7 +45,7 @@
 /* Private variables ---------------------------------------------------------*/
 
 /* USER CODE BEGIN PV */
-
+uint8_t rx_data;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -56,7 +56,21 @@ void SystemClock_Config(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
+{
+	/* Prevent unused argument(s) compilation warning */
+	UNUSED(huart);
+	if (huart->Instance == USART2) {
+		if (rx_data == 'r') {
+			/* For testing UART purpose */
+			char *str = "Received";
+			HAL_UART_Transmit(&huart2, (uint8_t *) str, strlen(str), 100);
+		}
 
+		// Re-trigger Uart Receive INT
+		HAL_UART_Receive_IT(&huart2, &rx_data, 1);
+	}
+}
 /* USER CODE END 0 */
 
 /**
@@ -91,14 +105,16 @@ int main(void)
   MX_USART2_UART_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-  char *str = "Unable to Create Semaphore\n\n";
-  HAL_UART_Transmit(&huart2, (uint8_t *) str, strlen(str), 100);
+  HAL_UART_Receive_IT(&huart2, &rx_data, 1);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	char *str = "Unable to Create Semaphore\n\n";
+	HAL_UART_Transmit(&huart2, (uint8_t *) str, strlen(str), 100);
+	HAL_Delay(2000);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
