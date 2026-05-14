@@ -24,7 +24,7 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
-
+#include "string.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -91,7 +91,8 @@ int main(void)
   MX_USART2_UART_Init();
   MX_I2C1_Init();
   /* USER CODE BEGIN 2 */
-
+  char *str = "Unable to Create Semaphore\n\n";
+  HAL_UART_Transmit(&huart2, (uint8_t *) str, strlen(str), 100);
   /* USER CODE END 2 */
 
   /* Infinite loop */
