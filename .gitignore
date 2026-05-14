@@ -1,0 +1,17 @@
+# STM32-IDE Config files
+/.settings/
+/Core/Startup/
+*.cproject
+*.mxproject
+*.project
+*.ioc
+
+# STM32 Build artifacts
+/Release/
+/Debug/
+
+# Cortex-ARM Drivers
+/Drivers
+
+# Cortex-ARM Specs files
+*.ld
