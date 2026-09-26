@@ -47,6 +47,7 @@
 
 /* USER CODE BEGIN PV */
 uint8_t rx_data;
+//char *str = "Transmitted";
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -116,6 +117,8 @@ int main(void)
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+//	  HAL_UART_Transmit(&huart2, (uint8_t *) str, strlen(str), 100);
+//	  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
 	  ov7670_module();
 	  HAL_Delay(500);
     /* USER CODE END WHILE */

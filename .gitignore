@@ -1,6 +1,5 @@
 # STM32-IDE Config files
 /.settings/
-/Core/Startup/
 
 # STM32 Build artifacts
 /Release/
