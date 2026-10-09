@@ -65,8 +65,8 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
 	if (huart->Instance == USART2) {
 		if (rx_data == 'r') {
 			/* For testing UART purpose */
-			char *str = "Received";
-			HAL_UART_Transmit(&huart2, (uint8_t *) str, strlen(str), 100);
+//			char *str = "Received";
+//			HAL_UART_Transmit(&huart2, (uint8_t *) str, strlen(str), 100);
 		}
 
 		// Re-trigger Uart Receive INT
@@ -111,6 +111,7 @@ int main(void)
 
   ov7670_init();
 
+
   /* USER CODE END 2 */
 
   /* Infinite loop */
@@ -120,7 +121,7 @@ int main(void)
 //	  HAL_UART_Transmit(&huart2, (uint8_t *) str, strlen(str), 100);
 //	  HAL_GPIO_TogglePin(GPIOD, GPIO_PIN_13);
 	  ov7670_module();
-	  HAL_Delay(500);
+//	  HAL_Delay(500);
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */

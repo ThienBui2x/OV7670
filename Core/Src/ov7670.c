@@ -11,9 +11,29 @@
 extern I2C_HandleTypeDef hi2c1;
 extern UART_HandleTypeDef huart2;
 
-volatile status_t ov7670_flag = OV7670_IDLE;
+volatile status_t ov7670_flag = OV7670_READY;
 volatile state_t vsync_state = FRAME_IDLE;
 uint8_t pixels[OV7670_DATA_SIZE] = {0};
+
+static const int REG_CLKRC = 0x11;
+static const int REG_COM7 = 0x12;
+static const int REG_COM10 = 0x15;
+static const int REG_COM11 = 0x3B;
+static const int REG_TSLB = 0x3A;
+static const int REG_COM15 = 0x40;
+static const int REG_COM3 = 0x0C;
+static const int REG_MVFP = 0x1E;
+static const int REG_HSTART = 0x17;
+static const int REG_HSTOP = 0x18;
+static const int REG_HREF = 0x32;
+static const int REG_VSTART = 0x19;
+static const int REG_VSTOP = 0x1A;
+static const int REG_VREF = 0x03;
+static const int REG_COM14 = 0x3E;
+static const int SCALING_DCWCTR = 0x72;
+static const int SCALING_PCLK_DIV = 0x73;
+
+
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 	/* Prevent unused argument(s) compilation warning */
@@ -115,17 +135,34 @@ void ov7670_pixelDataToUart(void) {
 	strcpy(str, "START\n");
 	HAL_UART_Transmit(&huart2, (uint8_t *) str, strlen(str), 100);
 
-	// Somehow cannot transmit 48200 bytes continuously even increase to HAL_DELAY_MAX
-	for (int i = 0; i < 40; i++) {
-		uint16_t offset = i * 960;
-		HAL_UART_Transmit(&huart2, &pixels[offset], 960, 100);
-		HAL_Delay(100);
-	}
+	HAL_UART_Transmit(&huart2, pixels, OV7670_DATA_SIZE, HAL_MAX_DELAY);
 
 	strcpy(str, "END\n");
 	HAL_UART_Transmit(&huart2, (uint8_t *) str, strlen(str), 100);
 
 
+}
+
+void saturation(int s)  //-2 to 2
+{
+	//color matrix values
+	ov7670_write(0x4f, 0x80 + 0x20 * s);
+	ov7670_write(0x50, 0x80 + 0x20 * s);
+	ov7670_write(0x51, 0x00);
+	ov7670_write(0x52, 0x22 + (0x11 * s) / 2);
+	ov7670_write(0x53, 0x5e + (0x2f * s) / 2);
+	ov7670_write(0x54, 0x80 + 0x20 * s);
+	ov7670_write(0x58, 0x9e); //matrix signs
+}
+
+void frameControl(int hStart, int hStop, int vStart, int vStop)
+{
+	ov7670_write(REG_HSTART, hStart >> 3);
+	ov7670_write(REG_HSTOP, hStop >> 3);
+	ov7670_write(REG_HREF, ((hStop & 0b111) << 3) | (hStart & 0b111));
+	ov7670_write(REG_VSTART, vStart >> 2);
+	ov7670_write(REG_VSTOP, vStop >> 2);
+	ov7670_write(REG_VREF, 0x04);
 }
 
 uint8_t ov7670_init(void) {
@@ -153,11 +190,13 @@ uint8_t ov7670_init(void) {
 	ov7670_write(0x1a, 0x7b);
 	ov7670_write(0x03, 0x06);
 	ov7670_write(0x0c, 0x00);
-	ov7670_write(0x3e, 0x00);
-	ov7670_write(0x70, 0x3a);
-	ov7670_write(0x71, 0x35);  //If it is set to ov7670_write (0x71, 0x80); it will display eight colored vertical bars, for debugging purposes.
+	// ov7670_write(0x3e, 0x00);
+	ov7670_write(0x3e, 0x1a); // [NEW] COM14: enable manual scaling / PCLK division
+	// ov7670_write(0x70, 0x3a);
+	ov7670_write(0x71, 0x35); // If it is set to ov7670_write (0x71, 0x80); it will display eight colored vertical bars, for debugging purposes.
 	ov7670_write(0x72, 0x11);
-	ov7670_write(0x73, 0x00);
+	// ov7670_write(0x73, 0x00);
+	ov7670_write(0x73, 0xf2); // [NEW] QQVGA: PCLK divide by 4
 	ov7670_write(0xa2, 0x02);
 	ov7670_write(0x11, 0x81);
 
@@ -320,6 +359,30 @@ uint8_t ov7670_init(void) {
 	ov7670_write(0x79, 0x26);
 	ov7670_write(0x09, 0x00);
 
+//	ov7670_write(REG_COM7, 0b10000000);		//all registers default
+//	ov7670_write(REG_CLKRC, 0b10000000);	//double clock
+//	ov7670_write(REG_COM11, 0b1000 | 0b10);	//enable auto 50/60Hz detect + exposure timing can be less...
+//	ov7670_write(REG_TSLB, 0b100);	//sequence UYVY
+//	ov7670_write(REG_COM7, 0b100);	//RGB
+//	ov7670_write(REG_COM15,  0b11000000 | 0b010000);	//RGB565
+
+//	frameControl(192, 48, 8, 488); //no clue why horizontal needs such strange values, vertical works ok
+
+	ov7670_write(REG_COM10, 0x02);	//VSYNC negative
+	ov7670_write(REG_COM3, 0x04);	//DCW enable
+	ov7670_write(REG_MVFP, 0x2b);	//mirror flip
+
+    //160x120 (1/4)
+	ov7670_write(REG_COM14, 0x1a);	//pixel clock divided by 4, manual scaling enable, DCW and PCLK controlled by register
+	ov7670_write(SCALING_DCWCTR, 0x22);	//downsample by 4
+	ov7670_write(SCALING_PCLK_DIV, 0xf2); //pixel clock divided by 4
+
+	ov7670_write(0xb0, 0x84);	// no clue what this is but it's most important for colors
+	saturation(0);
+	ov7670_write(0x13, 0xe7);	//AWB on
+	ov7670_write(0x6f, 0x9f);	// Simple AWB
+
+
 	/* Init Checking */
 	/* Checking data of TLSB (0x3A) register */
 	if (ov7670_read(0x3A) == 0x04) {
@@ -401,4 +464,3 @@ uint8_t ov7670_getData(void) {
 
 	return rawData;
 }
-

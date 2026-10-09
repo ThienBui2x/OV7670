@@ -16,7 +16,7 @@
 #define OV7670_WIDTH		120
 #define OV7670_LENGTH		160
 #define BYTES_PER_PIXEL		2
-#define OV7670_DATA_SIZE	OV7670_LENGTH*OV7670_WIDTH*BYTES_PER_PIXEL
+#define OV7670_DATA_SIZE	(OV7670_LENGTH * OV7670_WIDTH * BYTES_PER_PIXEL)
 
 #define HIGH				GPIO_PIN_SET
 #define LOW					GPIO_PIN_RESET
@@ -97,6 +97,8 @@ void ov7670_module(void);
 void ov7670_fifo_write(void);
 void ov7670_fifo_read(void);
 void ov7670_pixelDataToUart(void);
+void saturation(int s);
+void frameControl(int hStart, int hStop, int vStart, int vStop);
 uint8_t ov7670_init(void);
 uint8_t ov7670_write(uint8_t memAddr, uint8_t data);
 uint8_t ov7670_read(uint8_t memAddr);
