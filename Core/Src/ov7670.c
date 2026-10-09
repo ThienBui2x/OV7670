@@ -17,6 +17,7 @@ uint8_t pixels[OV7670_DATA_SIZE] = {0};
 
 static const int REG_CLKRC = 0x11;
 static const int REG_COM7 = 0x12;
+static const int REG_COM8 = 0x13;
 static const int REG_COM10 = 0x15;
 static const int REG_COM11 = 0x3B;
 static const int REG_TSLB = 0x3A;
@@ -183,215 +184,34 @@ uint8_t ov7670_init(void) {
 	/* Set RegID COM7 (0x12) to 0x80 */
 	status = ov7670_write(0x12, 0x80);
 	if (status != HAL_OK) return status;
-	HAL_Delay(10);
+	HAL_Delay(100);
 
-	/* OV7670 Register Configuration */
-	ov7670_write(0x3a, 0x04);
-	ov7670_write(0x40, 0xd0);
-	ov7670_write(0x12, 0x14);
-	ov7670_write(0x32, 0x80);
-	ov7670_write(0x17, 0x16);
-	ov7670_write(0x18, 0x04);
-	ov7670_write(0x19, 0x02);
-	ov7670_write(0x1a, 0x7b);
-	ov7670_write(0x03, 0x06);
-	ov7670_write(0x0c, 0x00);
-	// ov7670_write(0x3e, 0x00);
-	ov7670_write(0x3e, 0x1a); // [NEW] COM14: enable manual scaling / PCLK division
-	// ov7670_write(0x70, 0x3a);
-	ov7670_write(0x71, 0x35); // If it is set to ov7670_write (0x71, 0x80); it will display eight colored vertical bars, for debugging purposes.
-	ov7670_write(0x72, 0x11);
-	// ov7670_write(0x73, 0x00);
-	ov7670_write(0x73, 0xf2); // [NEW] QQVGA: PCLK divide by 4
-	ov7670_write(0xa2, 0x02);
-	ov7670_write(0x11, 0x81);
+	ov7670_write(REG_CLKRC, 0x80);   		// CLKRC
+	ov7670_write(REG_COM11, 0x0A);   		// COM11: auto 50/60Hz
+	ov7670_write(REG_TSLB, 0x04);   		// TSLB
+	ov7670_write(REG_COM7, 0x04);   		// COM7: RGB (VGA base)
+	ov7670_write(REG_COM15, 0xD0);   		// COM15: RGB565
 
-	ov7670_write(0x7a, 0x20);
-	ov7670_write(0x7b, 0x1c);
-	ov7670_write(0x7c, 0x28);
-	ov7670_write(0x7d, 0x3c);
-	ov7670_write(0x7e, 0x55);
-	ov7670_write(0x7f, 0x68);
-	ov7670_write(0x80, 0x76);
-	ov7670_write(0x81, 0x80);
-	ov7670_write(0x82, 0x88);
-	ov7670_write(0x83, 0x8f);
-	ov7670_write(0x84, 0x96);
-	ov7670_write(0x85, 0xa3);
-	ov7670_write(0x86, 0xaf);
-	ov7670_write(0x87, 0xc4);
-	ov7670_write(0x88, 0xd7);
-	ov7670_write(0x89, 0xe8);
+	frameControl(192, 48, 8, 488);
 
-	ov7670_write(0x13, 0xe0);
-	ov7670_write(0x00, 0x00);
+	ov7670_write(REG_COM10, 0x02);   		// COM10: VSYNC negative
+	ov7670_write(REG_COM3, 0x04);   		// COM3: DCW enable
+	ov7670_write(REG_MVFP, 0x2B);   		// MVFP: mirror/flip
+		
+	/* QQVGA */
+	ov7670_write(REG_COM14, 0x1A);   		// COM14
+	ov7670_write(SCALING_DCWCTR, 0x22); 	// DCWCTR: downsample by 4
+	ov7670_write(SCALING_PCLK_DIV, 0xF2);	// PCLK divider	
 
-	ov7670_write(0x10, 0x00);
-	ov7670_write(0x0d, 0x00);
-	ov7670_write(0x14, 0x28);
-	ov7670_write(0xa5, 0x05);
-	ov7670_write(0xab, 0x07);
-	ov7670_write(0x24, 0x75);
-	ov7670_write(0x25, 0x63);
-	ov7670_write(0x26, 0xA5);
-	ov7670_write(0x9f, 0x78);
-	ov7670_write(0xa0, 0x68);
-	ov7670_write(0xa1, 0x03);
-	ov7670_write(0xa6, 0xdf);
-	ov7670_write(0xa7, 0xdf);
-	ov7670_write(0xa8, 0xf0);
-	ov7670_write(0xa9, 0x90);
-	ov7670_write(0xaa, 0x94);
-	ov7670_write(0x13, 0xe5);
-
-	ov7670_write(0x0e, 0x61);
-	ov7670_write(0x0f, 0x4b);
-	ov7670_write(0x16, 0x02);
-	ov7670_write(0x1e, 0x37);
-	ov7670_write(0x21, 0x02);
-	ov7670_write(0x22, 0x91);
-	ov7670_write(0x29, 0x07);
-	ov7670_write(0x33, 0x0b);
-	ov7670_write(0x35, 0x0b);
-	ov7670_write(0x37, 0x1d);
-	ov7670_write(0x38, 0x71);
-	ov7670_write(0x39, 0x2a);
-	ov7670_write(0x3c, 0x78);
-	ov7670_write(0x4d, 0x40);
-	ov7670_write(0x4e, 0x20);
-	ov7670_write(0x69, 0x00);
-	ov7670_write(0x6b, 0x60);
-	ov7670_write(0x74, 0x19);
-	ov7670_write(0x8d, 0x4f);
-	ov7670_write(0x8e, 0x00);
-	ov7670_write(0x8f, 0x00);
-	ov7670_write(0x90, 0x00);
-	ov7670_write(0x91, 0x00);
-	ov7670_write(0x92, 0x00);
-	ov7670_write(0x96, 0x00);
-	ov7670_write(0x9a, 0x80);
-	ov7670_write(0xb0, 0x84);
-	ov7670_write(0xb1, 0x0c);
-	ov7670_write(0xb2, 0x0e);
-	ov7670_write(0xb3, 0x82);
-	ov7670_write(0xb8, 0x0a);
-
-
-	ov7670_write(0x43, 0x14);
-	ov7670_write(0x44, 0xf0);
-	ov7670_write(0x45, 0x34);
-	ov7670_write(0x46, 0x58);
-	ov7670_write(0x47, 0x28);
-	ov7670_write(0x48, 0x3a);
-	ov7670_write(0x59, 0x88);
-	ov7670_write(0x5a, 0x88);
-	ov7670_write(0x5b, 0x44);
-	ov7670_write(0x5c, 0x67);
-	ov7670_write(0x5d, 0x49);
-	ov7670_write(0x5e, 0x0e);
-	ov7670_write(0x64, 0x04);
-	ov7670_write(0x65, 0x20);
-	ov7670_write(0x66, 0x05);
-	ov7670_write(0x94, 0x04);
-	ov7670_write(0x95, 0x08);
-	ov7670_write(0x6c, 0x0a);
-	ov7670_write(0x6d, 0x55);
-	ov7670_write(0x6e, 0x11);
-	ov7670_write(0x6f, 0x9f);
-	ov7670_write(0x6a, 0x40);
-	ov7670_write(0x01, 0x40);
-	ov7670_write(0x02, 0x40);
-	ov7670_write(0x13, 0xe7);
-	ov7670_write(0x15, 0x00);
-
-
-	ov7670_write(0x4f, 0x80);
-	ov7670_write(0x50, 0x80);
-	ov7670_write(0x51, 0x00);
-	ov7670_write(0x52, 0x22);
-	ov7670_write(0x53, 0x5e);
-	ov7670_write(0x54, 0x80);
-	ov7670_write(0x58, 0x9e);
-
-	ov7670_write(0x41, 0x08);
-	ov7670_write(0x3f, 0x00);
-	ov7670_write(0x75, 0x05);
-	ov7670_write(0x76, 0xe1);
-	ov7670_write(0x4c, 0x00);
-	ov7670_write(0x77, 0x01);
-	ov7670_write(0x3d, 0xc2);
-	ov7670_write(0x4b, 0x09);
-	ov7670_write(0xc9, 0x60);
-	ov7670_write(0x41, 0x38);
-	ov7670_write(0x56, 0x40);
-
-	ov7670_write(0x34, 0x11);
-	ov7670_write(0x3b, 0x02);
-
-	ov7670_write(0xa4, 0x89);
-	ov7670_write(0x96, 0x00);
-	ov7670_write(0x97, 0x30);
-	ov7670_write(0x98, 0x20);
-	ov7670_write(0x99, 0x30);
-	ov7670_write(0x9a, 0x84);
-	ov7670_write(0x9b, 0x29);
-	ov7670_write(0x9c, 0x03);
-	ov7670_write(0x9d, 0x4c);
-	ov7670_write(0x9e, 0x3f);
-	ov7670_write(0x78, 0x04);
-
-	ov7670_write(0x79, 0x01);
-	ov7670_write(0xc8, 0xf0);
-	ov7670_write(0x79, 0x0f);
-	ov7670_write(0xc8, 0x00);
-	ov7670_write(0x79, 0x10);
-	ov7670_write(0xc8, 0x7e);
-	ov7670_write(0x79, 0x0a);
-	ov7670_write(0xc8, 0x80);
-	ov7670_write(0x79, 0x0b);
-	ov7670_write(0xc8, 0x01);
-	ov7670_write(0x79, 0x0c);
-	ov7670_write(0xc8, 0x0f);
-	ov7670_write(0x79, 0x0d);
-	ov7670_write(0xc8, 0x20);
-	ov7670_write(0x79, 0x09);
-	ov7670_write(0xc8, 0x80);
-	ov7670_write(0x79, 0x02);
-	ov7670_write(0xc8, 0xc0);
-	ov7670_write(0x79, 0x03);
-	ov7670_write(0xc8, 0x40);
-	ov7670_write(0x79, 0x05);
-	ov7670_write(0xc8, 0x30);
-	ov7670_write(0x79, 0x26);
-	ov7670_write(0x09, 0x00);
-
-//	ov7670_write(REG_COM7, 0b10000000);		//all registers default
-//	ov7670_write(REG_CLKRC, 0b10000000);	//double clock
-//	ov7670_write(REG_COM11, 0b1000 | 0b10);	//enable auto 50/60Hz detect + exposure timing can be less...
-//	ov7670_write(REG_TSLB, 0b100);	//sequence UYVY
-//	ov7670_write(REG_COM7, 0b100);	//RGB
-//	ov7670_write(REG_COM15,  0b11000000 | 0b010000);	//RGB565
-
-//	frameControl(192, 48, 8, 488); //no clue why horizontal needs such strange values, vertical works ok
-
-	ov7670_write(REG_COM10, 0x02);	//VSYNC negative
-	ov7670_write(REG_COM3, 0x04);	//DCW enable (This is absolutely essential)
-	ov7670_write(REG_MVFP, 0x2b);	//mirror flip
-
-    //160x120 (1/4)
-	ov7670_write(REG_COM14, 0x1a);	//pixel clock divided by 4, manual scaling enable, DCW and PCLK controlled by register
-	ov7670_write(SCALING_DCWCTR, 0x22);	//downsample by 4
-	ov7670_write(SCALING_PCLK_DIV, 0xf2); //pixel clock divided by 4
-
-//	ov7670_write(0xb0, 0x84);	// no clue what this is but it's most important for colors
-//	saturation(0);
-//	ov7670_write(0x13, 0xe7);	//AWB on
-//	ov7670_write(0x6f, 0x9f);	// Simple AWB
-
+	ov7670_write(0xB0, 0x84);				// no clue what this is but it's most important for colors
+	saturation(0);
+	ov7670_write(REG_COM8, 0xE7);   		// AEC, AGC, AWB on
+	ov7670_write(0x6F, 0x9F);   			// simple AWB	
 
 	/* Init Checking */
+	/* Could also check REG_COM7 | REG_COM8 | SCALING_DCWCTR | SCALING_PCLK_DIV*/
 	/* Checking data of TLSB (0x3A) register */
-	if (ov7670_read(0x3A) == 0x04) {
+	if (ov7670_read(REG_TSLB) == 0x04) {
 		char *str = "Success to initialize OV7670\n";
 		HAL_UART_Transmit(&huart2, (uint8_t *) str, strlen(str), 100);
 	}
