@@ -35,48 +35,52 @@ static const int SCALING_PCLK_DIV = 0x73;
 
 
 
-void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
-	/* Prevent unused argument(s) compilation warning */
-	UNUSED(GPIO_Pin);
+//void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
+//	/* Prevent unused argument(s) compilation warning */
+//	UNUSED(GPIO_Pin);
+//
+//	if (GPIO_Pin == GPIO_PIN_9) {
+//		if (ov7670_flag == OV7670_READY) {
+//			if (vsync_state == FRAME_IDLE) {
+//				ov7670_flag = OV7670_BUSY;
+//				vsync_state = FRAME_WRITE;
+//			}
+//			else if (vsync_state == FRAME_READY) {
+//				ov7670_flag = OV7670_BUSY;
+//				vsync_state = FRAME_READ;
+//			}
+//		}
+//	}
+//}
 
-	if (GPIO_Pin == GPIO_PIN_9) {
-		if (ov7670_flag == OV7670_READY) {
-			if (vsync_state == FRAME_IDLE) {
-				ov7670_flag = OV7670_BUSY;
-				vsync_state = FRAME_WRITE;
-			}
-			else if (vsync_state == FRAME_READY) {
-				ov7670_flag = OV7670_BUSY;
-				vsync_state = FRAME_READ;
-			}
-		}
-	}
-}
-
-void ov7670_module(void) {
-	char str[100];
-	switch (vsync_state) {
-		case FRAME_WRITE:
-			strcpy(str, "First VSYNC Frame \n");
-			HAL_UART_Transmit(&huart2, (uint8_t *) str, strlen(str), 100);
-			ov7670_fifo_write();
-			vsync_state = FRAME_READY;
-			ov7670_flag = OV7670_READY;
-			break;
-		case FRAME_READ:
-			strcpy(str, "Second VSYNC Frame \n");
-			HAL_UART_Transmit(&huart2, (uint8_t *) str, strlen(str), 100);
-			ov7670_fifo_read();
-			ov7670_pixelDataToUart();
-			vsync_state = FRAME_IDLE;
-			ov7670_flag = OV7670_READY;
-			break;
-		case FRAME_IDLE:
-		case FRAME_READY:
-		default:
-			break;
-	}
-}
+//void ov7670_module(void) {
+//
+//    /* Enable FIFO output */
+//    OV7670_FIFO_OE(LOW);
+//
+//	char str[100];
+//	switch (vsync_state) {
+//		case FRAME_WRITE:
+//			strcpy(str, "First VSYNC Frame \n");
+//			HAL_UART_Transmit(&huart2, (uint8_t *) str, strlen(str), 100);
+//			ov7670_fifo_write();
+//			vsync_state = FRAME_READY;
+//			ov7670_flag = OV7670_READY;
+//			break;
+//		case FRAME_READ:
+//			strcpy(str, "Second VSYNC Frame \n");
+//			HAL_UART_Transmit(&huart2, (uint8_t *) str, strlen(str), 100);
+//			ov7670_fifo_read();
+//			ov7670_pixelDataToUart();
+//			vsync_state = FRAME_IDLE;
+//			ov7670_flag = OV7670_READY;
+//			break;
+//		case FRAME_IDLE:
+//		case FRAME_READY:
+//		default:
+//			break;
+//	}
+//}
 
 void ov7670_fifo_write(void) {
     /* Reset FIFO write pointer */
@@ -110,8 +114,6 @@ void ov7670_fifo_read(void) {
 
     OV7670_FIFO_RRST(HIGH);
 
-    /* Enable FIFO output */
-    OV7670_FIFO_OE(LOW);
 
     /*
      * Read exactly one complete frame:
@@ -127,6 +129,7 @@ void ov7670_fifo_read(void) {
 
         /* Read 8-bit data bus */
         pixels[i] = ov7670_getData();
+
     }
 
     /* Disable FIFO output */
@@ -372,7 +375,7 @@ uint8_t ov7670_init(void) {
 //	frameControl(192, 48, 8, 488); //no clue why horizontal needs such strange values, vertical works ok
 
 	ov7670_write(REG_COM10, 0x02);	//VSYNC negative
-	ov7670_write(REG_COM3, 0x04);	//DCW enable
+	ov7670_write(REG_COM3, 0x04);	//DCW enable (This is absolutely essential)
 	ov7670_write(REG_MVFP, 0x2b);	//mirror flip
 
     //160x120 (1/4)
@@ -380,10 +383,10 @@ uint8_t ov7670_init(void) {
 	ov7670_write(SCALING_DCWCTR, 0x22);	//downsample by 4
 	ov7670_write(SCALING_PCLK_DIV, 0xf2); //pixel clock divided by 4
 
-	ov7670_write(0xb0, 0x84);	// no clue what this is but it's most important for colors
-	saturation(0);
-	ov7670_write(0x13, 0xe7);	//AWB on
-	ov7670_write(0x6f, 0x9f);	// Simple AWB
+//	ov7670_write(0xb0, 0x84);	// no clue what this is but it's most important for colors
+//	saturation(0);
+//	ov7670_write(0x13, 0xe7);	//AWB on
+//	ov7670_write(0x6f, 0x9f);	// Simple AWB
 
 
 	/* Init Checking */

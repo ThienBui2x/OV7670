@@ -6,109 +6,109 @@ PORT = "COM5"
 BAUD = 115200
 
 START = b"START"
-END   = b"END"
+END = b"END"
 
-FRAME_SIZE = 160*120*2
+WIDTH = 160
+HEIGHT = 120
+FRAME_SIZE = WIDTH * HEIGHT * 2
+
+OUTPUT_DIR = Path(__file__).resolve().parent
 
 ser = serial.Serial(PORT, BAUD, timeout=1)
 
-while True:
 
-    # # -------------------------------------------------
-    # # WAIT FOR REQUEST FROM USER
-    # # -------------------------------------------------
-    # command = input("Enter command: ")
-
-    # if command.upper() == "EXIT":
-    #     break
-
-    # # Send request to board
-    # ser.write((command + "\r\n").encode())
-
-
-    # -------------------------------------------------
-    # WAIT FOR START
-    # -------------------------------------------------
-    sync = bytearray()
+def wait_for_marker(marker):
+    """Wait until the specified marker is received."""
+    buffer = bytearray()
 
     while True:
-        sync += ser.read(1)
+        data = ser.read(1)
 
-        if sync.endswith(START):
-            print("START detected")
-            break
+        if not data:
+            continue
 
-    # -------------------------------------------------
-    # RECEIVE EXACT FRAME DATA
-    # -------------------------------------------------
+        buffer.extend(data)
+
+        if buffer.endswith(marker):
+            return
+
+
+def receive_frame():
+    """Receive exactly one frame."""
     frame = bytearray()
 
     while len(frame) < FRAME_SIZE:
-        remaining = FRAME_SIZE - len(frame)
-        chunk = ser.read(remaining)
+        chunk = ser.read(FRAME_SIZE - len(frame))
 
         if chunk:
             frame.extend(chunk)
-            
-            print(
-                f"RX {len(chunk)} bytes "
-                f"({len(frame)}/{FRAME_SIZE})"
-            )
+            print(f"RX {len(frame)}/{FRAME_SIZE} bytes")
 
-    # -------------------------------------------------
-    # WAIT FOR END
-    # -------------------------------------------------
-    tail = bytearray()
+    return frame
 
+
+
+def convert_rgb565(frame):
+    image = Image.new("RGB", (WIDTH, HEIGHT))
+
+    # Same loop order as your C++ code
+    for x in range(WIDTH):
+        for y in range(HEIGHT):
+
+            # Same index calculation as C++
+            i = (y * WIDTH + x) << 1
+
+            # Read one RGB565 pixel (little-endian)
+            pixel = frame[i] | (frame[i + 1] << 8)
+
+            # Convert RGB565 to RGB888
+            r5 = (pixel >> 11) & 0x1F
+            g6 = (pixel >> 5) & 0x3F
+            b5 = pixel & 0x1F
+
+            r = (r5 * 255) // 31
+            g = (g6 * 255) // 63
+            b = (b5 * 255) // 31
+
+            # Write this pixel directly to its coordinates
+            image.putpixel((x, y), (r, g, b))
+
+    return image
+
+
+
+try:
     while True:
-        tail += ser.read(1)
+        # 1. Wait for START from the STM32
+        print("Waiting for START...")
+        wait_for_marker(START)
+        print("START detected")
 
-        if tail.endswith(END):
-            print("END detected")
-            break
+        # 2. Receive the raw frame
+        frame = receive_frame()
 
-    # -------------------------------------------------
-    # FRAME COMPLETE
-    # -------------------------------------------------
-    print("FRAME OK:", len(frame))
+        # 3. Wait for END
+        wait_for_marker(END)
+        print("END detected")
+        print("FRAME OK:", len(frame), "bytes")
 
-    # -------------------------------------------------
-    # SAW RAW DATA
-    # -------------------------------------------------
-    file_path = Path(__file__).parent / "raw_data.txt"
-    with open(file_path, "w", encoding="utf-8") as file:
-        file.write(frame.hex())
+        # 4. Save original binary data
+        raw_path = OUTPUT_DIR / "raw_data.bin"
+        raw_path.write_bytes(frame)
 
-    # -------------------------------------------------
-    # POST PROCESSING - CONVERT TO RGB FORMAT
-    # -------------------------------------------------
-    pixels = []
+        # 5. Convert and save image
+        image = convert_rgb565(frame)
 
-    for i in range(0, FRAME_SIZE, 2):
+        png_path = OUTPUT_DIR / "frame.png"
+        image.save(png_path)
 
-        # RGB565, little-endian
-        pixel = frame[i] | (frame[i + 1] << 8)
+        print("Image saved:", png_path)
 
-        r5 = (pixel >> 11) & 0x1F
-        g6 = (pixel >> 5) & 0x3F
-        b5 = pixel & 0x1F
+        # Stop after one image.
+        break
 
-        # Convert 5/6/5-bit values to 8-bit RGB
-        r = (r5 * 255) // 31
-        g = (g6 * 255) // 63
-        b = (b5 * 255) // 31
+except KeyboardInterrupt:
+    print("Stopped.")
 
-        pixels.append((r, g, b))
-        # pixels.append(pixel)
-    # -------------------------------------------------
-    # SAW RGB DATA - IMAGE FORMAT
-    # -------------------------------------------------
-    image = Image.new("RGB", (160, 120))
-    image.putdata(pixels)
-
-    png_path = Path(__file__).parent / "frame.png"
-    image.save(png_path)
-
-
-
-    break
+finally:
+    ser.close()
