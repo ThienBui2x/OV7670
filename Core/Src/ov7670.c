@@ -11,9 +11,29 @@
 extern I2C_HandleTypeDef hi2c1;
 extern UART_HandleTypeDef huart2;
 
-volatile status_t ov7670_flag = OV7670_IDLE;
+volatile status_t ov7670_flag = OV7670_READY;
 volatile state_t vsync_state = FRAME_IDLE;
 uint8_t pixels[OV7670_DATA_SIZE] = {0};
+
+static const int REG_CLKRC = 0x11;
+static const int REG_COM7 = 0x12;
+static const int REG_COM10 = 0x15;
+static const int REG_COM11 = 0x3B;
+static const int REG_TSLB = 0x3A;
+static const int REG_COM15 = 0x40;
+static const int REG_COM3 = 0x0C;
+static const int REG_MVFP = 0x1E;
+static const int REG_HSTART = 0x17;
+static const int REG_HSTOP = 0x18;
+static const int REG_HREF = 0x32;
+static const int REG_VSTART = 0x19;
+static const int REG_VSTOP = 0x1A;
+static const int REG_VREF = 0x03;
+static const int REG_COM14 = 0x3E;
+static const int SCALING_DCWCTR = 0x72;
+static const int SCALING_PCLK_DIV = 0x73;
+
+
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin) {
 	/* Prevent unused argument(s) compilation warning */
@@ -59,55 +79,58 @@ void ov7670_module(void) {
 }
 
 void ov7670_fifo_write(void) {
-//	HAL_NVIC_DisableIRQ(EXTI9_5_IRQn);
+    /* Reset FIFO write pointer */
+    OV7670_FIFO_WRST(LOW);
 
-	/* Generate a falling-edge
-	 * to indicate reset write pointer
-	 * and pull-up after reseting
-	 */
-	OV7670_FIFO_WRST(HIGH);
-	OV7670_FIFO_WRST(LOW);
-	for(int i=0;i<100;i++);
-	OV7670_FIFO_WRST(HIGH);
+    for (volatile uint32_t i = 0; i < 100; i++);
 
-	/* Enable fifo writing */
-	OV7670_FIFO_WR(HIGH);
+    OV7670_FIFO_WRST(HIGH);
 
-//	HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+    /* Enable FIFO writing */
+    OV7670_FIFO_WR(LOW);
 }
 
 void ov7670_fifo_read(void) {
-	/* Disable fifo writing */
-	OV7670_FIFO_WR(LOW);
 
-//	HAL_NVIC_DisableIRQ(EXTI9_5_IRQn);
+    /* Disable FIFO writing */
+    OV7670_FIFO_WR(HIGH);
 
-	/* Reset Read Pointer before reading */
-	OV7670_FIFO_RRST(LOW);
-	OV7670_FIFO_RCK(LOW);
-	OV7670_FIFO_RCK(HIGH);
-	OV7670_FIFO_RCK(LOW);
-	OV7670_FIFO_RCK(HIGH);
-	OV7670_FIFO_RRST(HIGH);
+    /* Reset FIFO read pointer */
+    OV7670_FIFO_RRST(LOW);
 
-	/* Both WR and OE are LOW during reading */
-	OV7670_FIFO_OE(LOW);
-	uint32_t duration = HAL_GetTick();
-	for (int i = 0; i < OV7670_DATA_SIZE; i++) {
-		/* Generate a rising-edge
-		 * to indicate read next byte
-		 */
-		OV7670_FIFO_RCK(LOW);
-		OV7670_FIFO_RCK(HIGH);
-		pixels[i] = ov7670_getData();
+    for (volatile uint32_t i = 0; i < 100; i++);
 
-		// DEBUGGING only - not good when spam tons of data to UART
-//		HAL_UART_Transmit(&huart2, (uint8_t *) rx_buf, sizeof(rx_buf), 100);
-	}
-	duration = HAL_GetTick() - duration;
-	OV7670_FIFO_OE(HIGH);
+    OV7670_FIFO_RCK(LOW);
 
-//	HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+    for (volatile uint32_t i = 0; i < 100; i++);
+
+    OV7670_FIFO_RCK(HIGH);
+
+    for (volatile uint32_t i = 0; i < 100; i++);
+
+    OV7670_FIFO_RRST(HIGH);
+
+    /* Enable FIFO output */
+    OV7670_FIFO_OE(LOW);
+
+    /*
+     * Read exactly one complete frame:
+     *
+     * 160 pixels × 120 lines × 2 bytes
+     * = 38400 bytes
+     */
+    for (uint32_t i = 0; i < OV7670_DATA_SIZE; i++)
+    {
+        /* Advance FIFO read clock */
+        OV7670_FIFO_RCK(LOW);
+        OV7670_FIFO_RCK(HIGH);
+
+        /* Read 8-bit data bus */
+        pixels[i] = ov7670_getData();
+    }
+
+    /* Disable FIFO output */
+    OV7670_FIFO_OE(HIGH);
 }
 
 void ov7670_pixelDataToUart(void) {
@@ -115,17 +138,34 @@ void ov7670_pixelDataToUart(void) {
 	strcpy(str, "START\n");
 	HAL_UART_Transmit(&huart2, (uint8_t *) str, strlen(str), 100);
 
-	// Somehow cannot transmit 48200 bytes continuously even increase to HAL_DELAY_MAX
-	for (int i = 0; i < 40; i++) {
-		uint16_t offset = i * 960;
-		HAL_UART_Transmit(&huart2, &pixels[offset], 960, 100);
-		HAL_Delay(100);
-	}
+	HAL_UART_Transmit(&huart2, pixels, OV7670_DATA_SIZE, HAL_MAX_DELAY);
 
 	strcpy(str, "END\n");
 	HAL_UART_Transmit(&huart2, (uint8_t *) str, strlen(str), 100);
 
 
+}
+
+void saturation(int s)  //-2 to 2
+{
+	//color matrix values
+	ov7670_write(0x4f, 0x80 + 0x20 * s);
+	ov7670_write(0x50, 0x80 + 0x20 * s);
+	ov7670_write(0x51, 0x00);
+	ov7670_write(0x52, 0x22 + (0x11 * s) / 2);
+	ov7670_write(0x53, 0x5e + (0x2f * s) / 2);
+	ov7670_write(0x54, 0x80 + 0x20 * s);
+	ov7670_write(0x58, 0x9e); //matrix signs
+}
+
+void frameControl(int hStart, int hStop, int vStart, int vStop)
+{
+	ov7670_write(REG_HSTART, hStart >> 3);
+	ov7670_write(REG_HSTOP, hStop >> 3);
+	ov7670_write(REG_HREF, ((hStop & 0b111) << 3) | (hStart & 0b111));
+	ov7670_write(REG_VSTART, vStart >> 2);
+	ov7670_write(REG_VSTOP, vStop >> 2);
+	ov7670_write(REG_VREF, 0x04);
 }
 
 uint8_t ov7670_init(void) {
@@ -153,11 +193,13 @@ uint8_t ov7670_init(void) {
 	ov7670_write(0x1a, 0x7b);
 	ov7670_write(0x03, 0x06);
 	ov7670_write(0x0c, 0x00);
-	ov7670_write(0x3e, 0x00);
-	ov7670_write(0x70, 0x3a);
-	ov7670_write(0x71, 0x35);  //If it is set to ov7670_write (0x71, 0x80); it will display eight colored vertical bars, for debugging purposes.
+	// ov7670_write(0x3e, 0x00);
+	ov7670_write(0x3e, 0x1a); // [NEW] COM14: enable manual scaling / PCLK division
+	// ov7670_write(0x70, 0x3a);
+	ov7670_write(0x71, 0x35); // If it is set to ov7670_write (0x71, 0x80); it will display eight colored vertical bars, for debugging purposes.
 	ov7670_write(0x72, 0x11);
-	ov7670_write(0x73, 0x00);
+	// ov7670_write(0x73, 0x00);
+	ov7670_write(0x73, 0xf2); // [NEW] QQVGA: PCLK divide by 4
 	ov7670_write(0xa2, 0x02);
 	ov7670_write(0x11, 0x81);
 
@@ -320,6 +362,30 @@ uint8_t ov7670_init(void) {
 	ov7670_write(0x79, 0x26);
 	ov7670_write(0x09, 0x00);
 
+//	ov7670_write(REG_COM7, 0b10000000);		//all registers default
+//	ov7670_write(REG_CLKRC, 0b10000000);	//double clock
+//	ov7670_write(REG_COM11, 0b1000 | 0b10);	//enable auto 50/60Hz detect + exposure timing can be less...
+//	ov7670_write(REG_TSLB, 0b100);	//sequence UYVY
+//	ov7670_write(REG_COM7, 0b100);	//RGB
+//	ov7670_write(REG_COM15,  0b11000000 | 0b010000);	//RGB565
+
+//	frameControl(192, 48, 8, 488); //no clue why horizontal needs such strange values, vertical works ok
+
+	ov7670_write(REG_COM10, 0x02);	//VSYNC negative
+	ov7670_write(REG_COM3, 0x04);	//DCW enable
+	ov7670_write(REG_MVFP, 0x2b);	//mirror flip
+
+    //160x120 (1/4)
+	ov7670_write(REG_COM14, 0x1a);	//pixel clock divided by 4, manual scaling enable, DCW and PCLK controlled by register
+	ov7670_write(SCALING_DCWCTR, 0x22);	//downsample by 4
+	ov7670_write(SCALING_PCLK_DIV, 0xf2); //pixel clock divided by 4
+
+	ov7670_write(0xb0, 0x84);	// no clue what this is but it's most important for colors
+	saturation(0);
+	ov7670_write(0x13, 0xe7);	//AWB on
+	ov7670_write(0x6f, 0x9f);	// Simple AWB
+
+
 	/* Init Checking */
 	/* Checking data of TLSB (0x3A) register */
 	if (ov7670_read(0x3A) == 0x04) {
@@ -383,22 +449,23 @@ uint8_t ov7670_read(uint8_t memAddr) {
 }
 
 uint8_t ov7670_getData(void) {
-	uint8_t rawData = 0x0;
-	GPIO_PinState dataBit[8];
-	dataBit[7] = OV7670_DATA7();
-	dataBit[6] = OV7670_DATA6();
-	dataBit[5] = OV7670_DATA5();
-	dataBit[4] = OV7670_DATA4();
-	dataBit[3] = OV7670_DATA3();
-	dataBit[2] = OV7670_DATA2();
-	dataBit[1] = OV7670_DATA1();
-	dataBit[0] = OV7670_DATA0();
+    uint8_t rawData = 0;
 
-	rawData = (dataBit[7] << 7) | (dataBit[6] << 6) | \
-			  (dataBit[5] << 5) | (dataBit[4] << 4) | \
-			  (dataBit[3] << 3) | (dataBit[2] << 2) | \
-			  (dataBit[1] << 1) | (dataBit[0] << 0);
+    /* Put FIFO into data-output phase */
+    OV7670_FIFO_RCK(HIGH);
 
-	return rawData;
+    /* Read data while RCK is HIGH */
+    rawData |= OV7670_DATA0() << 0;
+    rawData |= OV7670_DATA1() << 1;
+    rawData |= OV7670_DATA2() << 2;
+    rawData |= OV7670_DATA3() << 3;
+    rawData |= OV7670_DATA4() << 4;
+    rawData |= OV7670_DATA5() << 5;
+    rawData |= OV7670_DATA6() << 6;
+    rawData |= OV7670_DATA7() << 7;
+
+    /* Finish FIFO read cycle */
+    OV7670_FIFO_RCK(LOW);
+
+    return rawData;
 }
-
