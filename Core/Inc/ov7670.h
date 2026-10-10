@@ -101,5 +101,6 @@ uint8_t ov7670_init(void);
 uint8_t ov7670_write(uint8_t memAddr, uint8_t data);
 uint8_t ov7670_read(uint8_t memAddr);
 uint8_t ov7670_getData(void);
+void testImage();
 
 #endif /* INC_OV7670_H_ */

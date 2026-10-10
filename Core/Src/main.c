@@ -110,6 +110,8 @@ int main(void)
   HAL_UART_Receive_IT(&huart2, &rx_data, 1);
 
   ov7670_init();
+//  testImage();
+
 
   /* USER CODE END 2 */
 
@@ -125,8 +127,11 @@ int main(void)
 
 	while(!HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_9));
 	while(HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_9));
+
 	ov7670_fifo_write();
+
 	while(!HAL_GPIO_ReadPin(GPIOC, GPIO_PIN_9));
+
 	ov7670_fifo_read();
 	ov7670_pixelDataToUart();
 

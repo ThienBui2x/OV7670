@@ -55,7 +55,6 @@ def convert_rgb565(frame):
     for x in range(WIDTH):
         for y in range(HEIGHT):
 
-            # Same index calculation as C++
             i = (y * WIDTH + x) << 1
 
             # Read one RGB565 pixel (little-endian)
